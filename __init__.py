@@ -26,9 +26,17 @@ class ReplacePartOfImage:
         mask = mask.cpu()
         batch_size = image_target.size(0)
 
-        if image_ref.size(0) > 1 and image_ref.size(0) != batch_size:
+        if image_ref.size(0) != 1:
             raise ValueError(
-                "ReplacePartOfImage: Use either single reference image or a matching batch of reference images."
+                "ReplacePartOfImage: Please use single reference image."
+            )
+        elif image_target.size(0) == 0:
+            raise ValueError(
+                "ReplacePartOfImage: Target image is empty."
+            )
+        elif image_ref[0].shape != image_target[0].shape:
+            raise ValueError(
+                "ReplacePartOfImage: Reference and target image must have the same shape."
             )
 
         image_ref_np = image_ref.numpy()[0]
