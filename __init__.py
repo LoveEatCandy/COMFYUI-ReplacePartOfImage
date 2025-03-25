@@ -26,20 +26,18 @@ class ReplacePartOfImage:
         mask = mask.cpu()
         batch_size = image_target.size(0)
 
-        if image_ref.size(0) != 1:
+        if image_ref.size(0) > 1 and image_ref.size(0) != batch_size:
             raise ValueError(
-                "ReplacePartOfImage: Please use single reference image."
+                "ReplacePartOfImage: Please use single reference image or a batch of the same size as the target image."
             )
-        elif image_target.size(0) == 0:
-            raise ValueError(
-                "ReplacePartOfImage: Target image is empty."
-            )
-        elif image_ref[0].shape != image_target[0].shape:
+
+        image_ref_np = image_ref[0].numpy()
+
+        if image_ref_np.shape != image_target[0].numpy().shape:
             raise ValueError(
                 "ReplacePartOfImage: Reference and target image must have the same shape."
             )
 
-        image_ref_np = image_ref.numpy()[0]
         mask_np = mask.numpy()
         mask_np = (mask_np > 0).astype(image_ref_np.dtype)
         mask_np = np.squeeze(mask_np)
@@ -48,6 +46,9 @@ class ReplacePartOfImage:
         out = []
         for i in range(batch_size):
             image_target_np = image_target[i].numpy()
+            image_ref_np = (
+                image_ref[i].numpy() if image_ref.size(0) > 1 else image_ref_np
+            )
 
             blended_image = image_target_np * (1 - mask_np) + image_ref_np * mask_np
 
