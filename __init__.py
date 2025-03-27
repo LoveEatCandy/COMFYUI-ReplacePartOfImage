@@ -9,8 +9,12 @@ class ReplacePartOfImage:
             "required": {
                 "image_ref": ("IMAGE",),
                 "image_target": ("IMAGE",),
-                "mask": ("MASK",),
-            }
+            },
+            "optional": {
+                "mask": ("MASK", {"default": None}),
+                "left_top_x": ("INT", {"default": 0, "min": 0, "step": 1}),
+                "left_top_y": ("INT", {"default": 0, "min": 0, "step": 1}),
+            },
         }
 
     CATEGORY = "ReplacePartOfImage"
@@ -20,10 +24,11 @@ class ReplacePartOfImage:
     FUNCTION = "replace_part_of_image"
     DESCRIPTION = "Replace part of an image with another image"
 
-    def replace_part_of_image(self, image_ref, image_target, mask):
+    def replace_part_of_image(
+        self, image_ref, image_target, mask=None, left_top_x=0, left_top_y=0
+    ):
         image_ref = image_ref.cpu()
         image_target = image_target.cpu()
-        mask = mask.cpu()
         batch_size = image_target.size(0)
 
         if image_ref.size(0) > 1 and image_ref.size(0) != batch_size:
@@ -33,15 +38,13 @@ class ReplacePartOfImage:
 
         image_ref_np = image_ref[0].numpy()
 
-        if image_ref_np.shape != image_target[0].numpy().shape:
-            raise ValueError(
-                "ReplacePartOfImage: Reference and target image must have the same shape."
-            )
-
-        mask_np = mask.numpy()
-        mask_np = (mask_np > 0).astype(image_ref_np.dtype)
-        mask_np = np.squeeze(mask_np)
-        mask_np = np.expand_dims(mask_np, axis=-1)
+        mask_np = None
+        if mask is not None:
+            mask = mask.cpu()
+            mask_np = mask.numpy()
+            mask_np = (mask_np > 0).astype(image_ref_np.dtype)
+            mask_np = np.squeeze(mask_np)
+            mask_np = np.expand_dims(mask_np, axis=-1)
 
         out = []
         for i in range(batch_size):
@@ -50,7 +53,47 @@ class ReplacePartOfImage:
                 image_ref[i].numpy() if image_ref.size(0) > 1 else image_ref_np
             )
 
-            blended_image = image_target_np * (1 - mask_np) + image_ref_np * mask_np
+            ref_shape = image_ref_np.shape
+            if mask_np is not None and mask_np.shape[:2] != ref_shape[:2]:
+                raise ValueError(
+                    f"ReplacePartOfImage: Mask({mask_np.shape[:2]}) and reference({ref_shape[:2]}) image must have the same shape."
+                )
+
+            target_shape = image_target_np.shape
+            if left_top_x > target_shape[1]:
+                raise ValueError(
+                    f"left_top_x({left_top_x}) must smaller than target image width({target_shape[1]})"
+                )
+            if left_top_y > target_shape[0]:
+                raise ValueError(
+                    f"left_top_y({left_top_y}) must smaller than target image height({target_shape[0]})"
+                )
+
+            width, height = (
+                min(ref_shape[1], target_shape[1] - left_top_x),
+                min(ref_shape[0], target_shape[0] - left_top_y),
+            )
+
+            current_ref_np = image_ref_np[:height, :width, :]
+            current_mask_np = None
+            if mask_np is not None:
+                current_mask_np = mask_np[:height, :width, :]
+
+            if current_mask_np is None:
+                part_of_blended_image = current_ref_np
+            else:
+                part_of_target = image_target_np[
+                    left_top_y : left_top_y + height, left_top_x : left_top_x + width, :
+                ]
+                part_of_blended_image = (
+                    part_of_target * (1 - current_mask_np)
+                    + current_ref_np * current_mask_np
+                )
+
+            blended_image = image_target_np.copy()
+            blended_image[
+                left_top_y : left_top_y + height, left_top_x : left_top_x + width, :
+            ] = part_of_blended_image
 
             out.append(torch.tensor(blended_image))
 
@@ -82,3 +125,11 @@ def generate_node_mappings(node_config):
 NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS = generate_node_mappings(NODE_CONFIG)
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
+
+
+if __name__ == "__main__":
+    import pickle
+
+    with open("/data/project/ComfyUI/input.pkl", "rb") as f:
+        data = pickle.load(f)
+    ReplacePartOfImage().replace_part_of_image(**data)
