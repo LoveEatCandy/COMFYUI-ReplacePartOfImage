@@ -125,11 +125,3 @@ def generate_node_mappings(node_config):
 NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS = generate_node_mappings(NODE_CONFIG)
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
-
-
-if __name__ == "__main__":
-    import pickle
-
-    with open("/data/project/ComfyUI/input.pkl", "rb") as f:
-        data = pickle.load(f)
-    ReplacePartOfImage().replace_part_of_image(**data)
