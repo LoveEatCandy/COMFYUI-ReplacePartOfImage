@@ -29,6 +29,8 @@ class ReplacePartOfImage:
     ):
         image_ref = image_ref.cpu()
         image_target = image_target.cpu()
+        image_ref = image_ref.squeeze()
+        image_target = image_target.squeeze()
         batch_size = image_target.size(0)
 
         if image_ref.size(0) > 1 and image_ref.size(0) != batch_size:
@@ -40,6 +42,8 @@ class ReplacePartOfImage:
 
         mask_np = None
         if mask is not None:
+            if mask.dtype == torch.float16:
+                mask = mask.to(torch.float32)
             mask = mask.cpu()
             mask_np = mask.numpy()
             mask_np = (mask_np > 0).astype(image_ref_np.dtype)
