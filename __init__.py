@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 
 
 class ReplacePartOfImage:
@@ -27,10 +26,9 @@ class ReplacePartOfImage:
     def replace_part_of_image(
         self, image_ref, image_target, mask=None, left_top_x=0, left_top_y=0
     ):
-        image_ref = image_ref.cpu()
-        image_target = image_target.cpu()
-        image_ref = image_ref.squeeze()
-        image_target = image_target.squeeze()
+        image_ref = image_ref.to(torch.float32)
+        image_target = image_target.to(torch.float32)
+
         batch_size = image_target.size(0)
 
         if image_ref.size(0) > 1 and image_ref.size(0) != batch_size:
@@ -38,70 +36,46 @@ class ReplacePartOfImage:
                 "ReplacePartOfImage: Please use single reference image or a batch of the same size as the target image."
             )
 
-        image_ref_np = image_ref[0].numpy()
-
-        mask_np = None
+        # 获取掩码，并确保其为二值化的 float32
         if mask is not None:
-            if mask.dtype == torch.float16:
-                mask = mask.to(torch.float32)
-            mask = mask.cpu()
-            mask_np = mask.numpy()
-            mask_np = (mask_np > 0).astype(image_ref_np.dtype)
-            mask_np = np.squeeze(mask_np)
-            mask_np = np.expand_dims(mask_np, axis=-1)
+            mask = mask.squeeze(0).unsqueeze(-1).to(torch.float32)
+            mask = (mask > 0.5).to(image_ref.dtype)
 
         out = []
         for i in range(batch_size):
-            image_target_np = image_target[i].numpy()
-            image_ref_np = (
-                image_ref[i].numpy() if image_ref.size(0) > 1 else image_ref_np
-            )
+            image_ref_i = image_ref[i] if image_ref.size(0) > 1 else image_ref[0]
+            image_target_i = image_target[i]
 
-            ref_shape = image_ref_np.shape
-            if mask_np is not None and mask_np.shape[:2] != ref_shape[:2]:
-                raise ValueError(
-                    f"ReplacePartOfImage: Mask({mask_np.shape[:2]}) and reference({ref_shape[:2]}) image must have the same shape."
-                )
+            ref_shape = image_ref_i.shape
+            target_shape = image_target_i.shape
 
-            target_shape = image_target_np.shape
             if left_top_x > target_shape[1]:
                 raise ValueError(
-                    f"left_top_x({left_top_x}) must smaller than target image width({target_shape[1]})"
+                    f"left_top_x({left_top_x}) must be smaller than target image width({target_shape[1]})"
                 )
             if left_top_y > target_shape[0]:
                 raise ValueError(
-                    f"left_top_y({left_top_y}) must smaller than target image height({target_shape[0]})"
+                    f"left_top_y({left_top_y}) must be smaller than target image height({target_shape[0]})"
                 )
 
-            width, height = (
-                min(ref_shape[1], target_shape[1] - left_top_x),
-                min(ref_shape[0], target_shape[0] - left_top_y),
-            )
+            width = min(ref_shape[1], target_shape[1] - left_top_x)
+            height = min(ref_shape[0], target_shape[0] - left_top_y)
 
-            current_ref_np = image_ref_np[:height, :width, :]
-            current_mask_np = None
-            if mask_np is not None:
-                current_mask_np = mask_np[:height, :width, :]
+            current_ref = image_ref_i[:height, :width, :]
+            part_of_target = image_target_i[left_top_y:left_top_y + height, left_top_x:left_top_x + width, :]
 
-            if current_mask_np is None:
-                part_of_blended_image = current_ref_np
+            if mask is not None:
+                current_mask = mask[:height, :width, :]
+                part_of_blended_image = part_of_target * (1 - current_mask) + current_ref * current_mask
             else:
-                part_of_target = image_target_np[
-                    left_top_y : left_top_y + height, left_top_x : left_top_x + width, :
-                ]
-                part_of_blended_image = (
-                    part_of_target * (1 - current_mask_np)
-                    + current_ref_np * current_mask_np
-                )
+                part_of_blended_image = current_ref
 
-            blended_image = image_target_np.copy()
-            blended_image[
-                left_top_y : left_top_y + height, left_top_x : left_top_x + width, :
-            ] = part_of_blended_image
+            blended_image = image_target_i.clone()
+            blended_image[left_top_y:left_top_y + height, left_top_x:left_top_x + width, :] = part_of_blended_image
 
-            out.append(torch.tensor(blended_image))
+            out.append(blended_image)
 
-        out = torch.stack(out, dim=0).to(torch.float32)
+        out = torch.stack(out, dim=0).clamp(0, 1)  # 保持数据范围
         return (out,)
 
 
