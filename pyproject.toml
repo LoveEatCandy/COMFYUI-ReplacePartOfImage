@@ -1,5 +1,5 @@
 [project]
-name = "replace_part_of_image"
+name = "replace-part-of-image"
 description = "Replace part of an image with another image"
 version = "1.0.0"
 license = {file = "LICENSE"}
