@@ -1,5 +1,5 @@
 [project]
-name = "replacepartofimage"
+name = "replace_part_of_image"
 description = "Replace part of an image with another image"
 version = "1.0.0"
 license = {file = "LICENSE"}
@@ -9,6 +9,6 @@ Repository = "https://github.com/LoveEatCandy/COMFYUI-ReplacePartOfImage"
 #  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
-PublisherId = ""
+PublisherId = "phy"
 DisplayName = "COMFYUI-ReplacePartOfImage"
 Icon = ""
