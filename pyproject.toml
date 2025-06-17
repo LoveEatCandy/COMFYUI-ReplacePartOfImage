@@ -11,4 +11,4 @@ Repository = "https://github.com/LoveEatCandy/COMFYUI-ReplacePartOfImage"
 [tool.comfy]
 PublisherId = "phy"
 DisplayName = "COMFYUI-ReplacePartOfImage"
-Icon = ""
+Icon = "https://avatars.githubusercontent.com/u/32889277"
